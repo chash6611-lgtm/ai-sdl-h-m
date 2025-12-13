@@ -90,11 +90,15 @@ export const generateIllustration = async (prompt: string): Promise<string | nul
 
 const MATH_RULE_PROMPT = `
 **[수식 표기 원칙 - LaTeX 필수]**
-1. **모든 수학 기호, 변수, 식은 반드시 LaTeX 문법**을 사용하여 작성하십시오. 일반 텍스트로 수학 기호를 쓰지 마세요.
-2. **인라인 수식**: 문장 중간에 나오는 변수($x, y$)나 간단한 식은 \`$ ... $\`를 사용하세요. (예: $y = 2x$)
-3. **블록 수식**: 중요하거나 복잡한 식은 \`$$ ... $$\`를 사용하세요. (예: $$ x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a} $$)
-4. **띄어쓰기 금지**: 달러 기호와 수식 사이에는 공백을 두지 마십시오. (Correct: \`$x$\`, Incorrect: \`$ x $\`)
-5. **주의**: 숫자만 있는 경우(예: 1, 2)는 제외하되, 문자와 결합된 식(예: $2x$, $30^\\circ$)은 반드시 수식 처리하세요.
+1. **모든 수학 수식은 반드시 LaTeX 포맷($ 또는 $$)으로 감싸야 합니다.** (예: $y=2x$, $$ S = \\pi r^2 $$)
+2. **블록 수식**: 복잡한 식이나 풀이 과정은 \`$$ ... $$\`를 사용하십시오.
+   예:
+   $$
+   x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}
+   $$
+3. **인라인 수식**: 문장 속의 변수나 간단한 식은 \`$ ... $\`를 사용하십시오. (예: $x$의 값은...)
+4. **주의**: 일반 텍스트로 수학 기호를 쓰지 마십시오. (x^2 (X) -> $x^2$ (O))
+5. **JSON 출력 시**: 백슬래시(\\)는 반드시 이스케이프(\\\\)해야 합니다. (예: "\\frac" -> "\\\\frac")
 `;
 
 export const getExplanationStream = async (subjectName: string, standardDescription: string): Promise<AsyncGenerator<GenerateContentResponse>> => {
@@ -176,6 +180,44 @@ export const generateSummary = async (text: string): Promise<string> => {
     }
 };
 
+export const generateConceptSummary = async (subjectName: string, standardDescription: string): Promise<string> => {
+    try {
+        let systemInstruction = '';
+        if (subjectName === '영어') {
+            systemInstruction = `
+            당신은 한국 중학생들을 위한 친절하고 유능한 영어 AI 튜터입니다.
+            학생들이 성취기준의 핵심 내용을 쉽고 명확하게 파악할 수 있도록 도와주세요.
+            `;
+        } else {
+            systemInstruction = `
+            당신은 ${subjectName} 교과 전문가입니다.
+            ${MATH_RULE_PROMPT}
+            `;
+        }
+        
+        const userPrompt = `
+        다음 성취기준에 대한 핵심 내용을 중학생이 이해하기 쉽게 3~5줄 내외의 글머리 기호(Bullet points)로 요약해줘.
+        설명보다는 핵심 개념 정의와 원리 위주로 정리해줘.
+        
+        성취기준: "${standardDescription}"
+        `;
+
+        const aiInstance = getAi();
+        const response = await aiInstance.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: userPrompt,
+            config: {
+                systemInstruction: systemInstruction,
+            }
+        });
+
+        return response.text || "요약을 생성할 수 없습니다.";
+    } catch (error) {
+        console.error("Concept summary generation error:", error);
+        return "";
+    }
+};
+
 export const getFollowUpAnswerStream = async (
     subjectName: string,
     standardDescription: string,
@@ -243,7 +285,12 @@ export interface QuestionRequest {
     count: number;
 }
 
-export const generateQuestions = async (subjectName: string, standardDescription: string, requests: QuestionRequest[]): Promise<QuizQuestion[]> => {
+export const generateQuestions = async (
+    subjectName: string, 
+    standardDescription: string, 
+    requests: QuestionRequest[],
+    difficulty: string = '중'
+): Promise<QuizQuestion[]> => {
     try {
         const totalQuestions = requests.reduce((sum, req) => sum + req.count, 0);
         if (totalQuestions === 0) {
@@ -279,6 +326,8 @@ export const generateQuestions = async (subjectName: string, standardDescription
 
         const userPrompt = `
             성취기준: "${standardDescription}"
+            난이도: ${difficulty} (상, 중, 하 중 선택됨)
+            
             위 성취기준에 근거하여 중학생 수준의 총 ${totalQuestions}개의 문제를 JSON 형식으로 생성하세요.
             
             요청사항:
@@ -288,8 +337,8 @@ export const generateQuestions = async (subjectName: string, standardDescription
             - ${languageInstruction}
             - ${explanationInstruction}
             - ${passageInstruction}
+            - 난이도가 '${difficulty}'임을 감안하여 문제의 복잡성을 조절하세요.
             - **창의/탐구형 문제('creativity')의 경우**: 'answer' 필드에는 학생이 작성해야 할 모범 답안의 예시나, 채점 시 고려해야 할 핵심 평가 요소(키워드, 논리 구조 등)를 상세히 기술하세요.
-            - 문제의 난이도는 중학생이 풀 수 있는 수준으로 맞춰주세요.
             - 시각 자료가 문제 풀이에 결정적인 도움이 되는 경우에만 'imagePrompt'에 영어 프롬프트 작성 (없으면 빈 문자열).
             - **JSON 문자열 내부 주의**: LaTeX를 사용할 때는 백슬래시를 이스케이프 해야 합니다. (예: "$\\frac{1}{2}$" -> "$\\\\frac{1}{2}$")
         `;
@@ -501,4 +550,34 @@ export const generateLearningDiagnosis = async (history: QuizResult[]): Promise<
         console.error("Diagnosis generation error:", error);
         throw new Error("리포트를 생성하는 중 오류가 발생했습니다.");
     }
+};
+
+export const preprocessLaTeX = (content: string | null | undefined): string => {
+    if (!content) return '';
+    let processed = content;
+
+    // 1. Unescape double backslashes for LaTeX commands (\\frac -> \frac)
+    processed = processed.replace(/\\\\([a-zA-Z]+)/g, '\\$1');
+    
+    // 2. Unescape specific math delimiters if escaped 
+    // It's safer to convert \[ and \] to $$.
+    processed = processed.replace(/\\\[/g, '$$$');
+    processed = processed.replace(/\\\]/g, '$$$');
+    processed = processed.replace(/\\\(/g, '$');
+    processed = processed.replace(/\\\)/g, '$');
+
+    // 3. Fix naked environments (wrap in $$)
+    const blockEnvs = ['aligned', 'align', 'equation', 'gather', 'cases'];
+    blockEnvs.forEach(env => {
+        processed = processed.replace(new RegExp(`\\\\begin\\{${env}\\}`, 'g'), `$$\n\\begin{${env}}`);
+        processed = processed.replace(new RegExp(`\\\\end\\{${env}\\}`, 'g'), `\\end{${env}}\n$$`);
+    });
+
+    // 4. Cleanup empty double dollars or nested dollars
+    processed = processed.replace(/\$\$\s*\$\$/g, '$$');
+    
+    // 5. Fix escaped dollar signs \$ -> $
+    processed = processed.replace(/\\\$/g, '$');
+
+    return processed;
 };

@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { getExplanationStream, generateQuestions, generateSpeech, QuestionRequest, getFollowUpAnswerStream, generateIllustration, generateSummary } from '../services/geminiService.ts';
+import { getExplanationStream, generateQuestions, generateSpeech, QuestionRequest, getFollowUpAnswerStream, generateIllustration, generateConceptSummary, preprocessLaTeX } from '../services/geminiService.ts';
 import type { AchievementStandard, QuizQuestion, QuizResult, TTSVoice, QuestionType, ConversationMessage } from '../types.ts';
 import useLocalStorage from '../hooks/useLocalStorage.ts';
 import { Button } from './common/Button.tsx';
@@ -86,6 +86,9 @@ export const StudySession: React.FC<StudySessionProps> = ({ subjectName, standar
     const [isLoadingSummary, setIsLoadingSummary] = useState<boolean>(false);
     
     const [questionCounts, setQuestionCounts] = useState<{ [key in QuestionType]: number }>(defaultQuestionCounts);
+    
+    // New Difficulty State (Points state removed)
+    const [difficulty, setDifficulty] = useState<'상' | '중' | '하'>('중');
 
     const [questions, setQuestions] = useState<QuizQuestion[] | null>(null);
     const [isGeneratingQuestions, setIsGeneratingQuestions] = useState<boolean>(false);
@@ -141,7 +144,6 @@ export const StudySession: React.FC<StudySessionProps> = ({ subjectName, standar
             setIsLoadingExplanation(true);
             setIsStreamingExplanation(true);
             setExplanation('');
-            setSummary(null);
             explanationRef.current = '';
             setExplanationError(null);
             try {
@@ -186,9 +188,27 @@ export const StudySession: React.FC<StudySessionProps> = ({ subjectName, standar
             }
         };
 
+        const fetchSummary = async () => {
+             setIsLoadingSummary(true);
+             setSummary(null);
+             try {
+                 const result = await generateConceptSummary(subjectName, standard.description);
+                 if (!isCancelled && result) {
+                     setSummary(result);
+                 }
+             } catch (error) {
+                 console.error(error);
+             } finally {
+                 if (!isCancelled) {
+                     setIsLoadingSummary(false);
+                 }
+             }
+        }
+
         // Execute in parallel to reduce wait time
         fetchExplanation();
         fetchIllustration();
+        fetchSummary();
 
         return () => {
             isCancelled = true;
@@ -279,20 +299,6 @@ export const StudySession: React.FC<StudySessionProps> = ({ subjectName, standar
         }
     }, [explanation, selectedVoice, isSpeaking, isLoadingTTS, stopAllAudio]);
 
-    const handleGenerateSummary = async () => {
-        if (summary) return; // Already generated
-        
-        setIsLoadingSummary(true);
-        try {
-            const result = await generateSummary(explanationRef.current);
-            setSummary(result);
-        } catch (error) {
-            alert("요약 생성 중 오류가 발생했습니다.");
-        } finally {
-            setIsLoadingSummary(false);
-        }
-    };
-
     const handleGenerateQuiz = async () => {
         setIsGeneratingQuestions(true);
         setQuestionsError(null);
@@ -307,7 +313,8 @@ export const StudySession: React.FC<StudySessionProps> = ({ subjectName, standar
                 return;
             }
 
-            const generated = await generateQuestions(subjectName, standard.description, requests);
+            // Removed points parameter
+            const generated = await generateQuestions(subjectName, standard.description, requests, difficulty);
             if (!generated || generated.length === 0) {
                 throw new Error("문제를 생성하지 못했습니다. 잠시 후 다시 시도해주세요.");
             }
@@ -453,14 +460,6 @@ export const StudySession: React.FC<StudySessionProps> = ({ subjectName, standar
         ul: (props: any) => <ul className="list-disc list-outside pl-4 my-1 space-y-0.5" {...props} />,
         ol: (props: any) => <ol className="list-decimal list-outside pl-4 my-1 space-y-0.5" {...props} />,
         li: (props: any) => <li className="leading-snug" {...props} />,
-        // Render math cleanly
-        span: ({node, ...props}: any) => {
-            if (props.className === 'katex') {
-                // Ensure proper display
-                return <span {...props} />
-            }
-            return <span {...props} />
-        }
     };
 
     if (!questions) {
@@ -475,17 +474,7 @@ export const StudySession: React.FC<StudySessionProps> = ({ subjectName, standar
                         </div>
                     </div>
                     
-                     <div className="flex flex-wrap items-center justify-between mt-2 border-b border-slate-200 dark:border-slate-700 pb-2 gap-2">
-                        <button
-                            onClick={handleGenerateSummary}
-                            disabled={isLoadingExplanation || isStreamingExplanation || isLoadingSummary || summary !== null}
-                            className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-700 text-yellow-700 dark:text-yellow-400 hover:bg-yellow-100 dark:hover:bg-yellow-900/50 text-sm font-medium disabled:opacity-50 transition-colors"
-                            aria-label="핵심 요약 보기"
-                        >
-                            {isLoadingSummary ? <Spinner size="sm" /> : <SparklesIcon className="h-4 w-4" />}
-                            <span>핵심 요약</span>
-                        </button>
-
+                     <div className="flex flex-wrap items-center justify-end mt-2 border-b border-slate-200 dark:border-slate-700 pb-2 gap-2">
                         <div className="flex items-center gap-2">
                             <select
                                 id="voice-select"
@@ -542,7 +531,7 @@ export const StudySession: React.FC<StudySessionProps> = ({ subjectName, standar
                                             rehypePlugins={[[rehypeKatex, { output: 'html' }]]}
                                             components={markdownComponents}
                                         >
-                                            {summary}
+                                            {preprocessLaTeX(summary)}
                                         </ReactMarkdown>
                                     </div>
                                 </div>
@@ -553,7 +542,7 @@ export const StudySession: React.FC<StudySessionProps> = ({ subjectName, standar
                                     rehypePlugins={[[rehypeKatex, { output: 'html' }]]}
                                     components={markdownComponents}
                                 >
-                                    {explanation + (isStreamingExplanation ? '▍' : '')}
+                                    {preprocessLaTeX(explanation + (isStreamingExplanation ? '▍' : ''))}
                                 </ReactMarkdown>
                             </div>
                         </div>
@@ -585,7 +574,7 @@ export const StudySession: React.FC<StudySessionProps> = ({ subjectName, standar
                                                     rehypePlugins={[[rehypeKatex, { output: 'html' }]]}
                                                     components={markdownComponents}
                                                 >
-                                                    {msg.text + (msg.role === 'model' && isAnswering && index === conversation.length -1 ? '▍' : '')}
+                                                    {preprocessLaTeX(msg.text + (msg.role === 'model' && isAnswering && index === conversation.length -1 ? '▍' : ''))}
                                                 </ReactMarkdown>
                                              </div>
                                         </div>
@@ -639,7 +628,7 @@ export const StudySession: React.FC<StudySessionProps> = ({ subjectName, standar
                                                 rehypePlugins={[[rehypeKatex, { output: 'html' }]]} 
                                                 components={markdownComponents}
                                             >
-                                                {userQuestion}
+                                                {preprocessLaTeX(userQuestion)}
                                             </ReactMarkdown>
                                         </div>
                                     </div>
@@ -658,6 +647,22 @@ export const StudySession: React.FC<StudySessionProps> = ({ subjectName, standar
 
                         <section>
                              <h2 className="text-lg sm:text-xl font-bold text-slate-800 dark:text-slate-100 mb-3">이해도 확인하기(문항수 선택 가능)</h2>
+                             
+                             {/* Difficulty Selection (Points Removed) */}
+                             <div className="mb-4 flex flex-col items-center">
+                                <label htmlFor="difficulty" className="block text-sm font-bold text-neon-blue mb-1">난이도</label>
+                                <select 
+                                    id="difficulty" 
+                                    value={difficulty} 
+                                    onChange={(e) => setDifficulty(e.target.value as '상' | '중' | '하')}
+                                    className="w-full max-w-xs p-2 border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-100 rounded-md text-sm text-center focus:ring-2 focus:ring-neon-blue outline-none transition-colors"
+                                >
+                                    <option value="상">상</option>
+                                    <option value="중">중</option>
+                                    <option value="하">하</option>
+                                </select>
+                             </div>
+
                             <div className="grid grid-cols-4 gap-2 mb-3">
                                 <div>
                                     <label htmlFor="mc-questions" className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-0.5 text-center">객관식</label>

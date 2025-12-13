@@ -6,7 +6,7 @@ import { EDUCATION_CURRICULUMS } from '../constants.ts';
 import { Button } from './common/Button.tsx';
 import { Card } from './common/Card.tsx';
 import { Spinner } from './common/Spinner.tsx';
-import { generateLearningDiagnosis } from '../services/geminiService.ts';
+import { generateLearningDiagnosis, preprocessLaTeX } from '../services/geminiService.ts';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -130,12 +130,12 @@ const QuizReviewModal: React.FC<{ result: QuizResult; onClose: () => void }> = (
                                             rehypePlugins={[[rehypeKatex, { output: 'html' }]]} 
                                             components={markdownComponents}
                                         >
-                                            {q.question}
+                                            {preprocessLaTeX(q.question)}
                                         </ReactMarkdown>
                                     </div>
                                     {q.questionTranslation && (
                                         <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                                            {q.questionTranslation}
+                                            {preprocessLaTeX(q.questionTranslation)}
                                         </div>
                                     )}
                                 </div>
@@ -148,7 +148,7 @@ const QuizReviewModal: React.FC<{ result: QuizResult; onClose: () => void }> = (
                                             rehypePlugins={[[rehypeKatex, { output: 'html' }]]} 
                                             components={markdownComponents}
                                         >
-                                            {q.passage}
+                                            {preprocessLaTeX(q.passage)}
                                         </ReactMarkdown>
                                         {q.passageTranslation && (
                                              <div className="mt-2 pt-2 border-t border-slate-100 dark:border-slate-700">
@@ -157,7 +157,7 @@ const QuizReviewModal: React.FC<{ result: QuizResult; onClose: () => void }> = (
                                                     rehypePlugins={[[rehypeKatex, { output: 'html' }]]} 
                                                     components={markdownComponents}
                                                 >
-                                                    {q.passageTranslation}
+                                                    {preprocessLaTeX(q.passageTranslation)}
                                                 </ReactMarkdown>
                                              </div>
                                         )}
@@ -174,7 +174,7 @@ const QuizReviewModal: React.FC<{ result: QuizResult; onClose: () => void }> = (
                                                     rehypePlugins={[[rehypeKatex, { output: 'html' }]]}
                                                     components={markdownComponents}
                                                 >
-                                                    {userAnswer || '(미입력)'}
+                                                    {preprocessLaTeX(userAnswer || '(미입력)')}
                                                 </ReactMarkdown>
                                             </div>
                                         </div>
@@ -189,9 +189,9 @@ const QuizReviewModal: React.FC<{ result: QuizResult; onClose: () => void }> = (
                                                     rehypePlugins={[[rehypeKatex, { output: 'html' }]]}
                                                     components={markdownComponents}
                                                 >
-                                                    {q.answer}
+                                                    {preprocessLaTeX(q.answer)}
                                                 </ReactMarkdown>
-                                                {q.answerTranslation && <span className="text-xs text-slate-500 dark:text-slate-400 font-normal ml-2">({q.answerTranslation})</span>}
+                                                {q.answerTranslation && <span className="text-xs text-slate-500 dark:text-slate-400 font-normal ml-2">({preprocessLaTeX(q.answerTranslation)})</span>}
                                             </div>
                                             <div className="text-slate-600 dark:text-slate-400 text-xs leading-snug">
                                                 <ReactMarkdown 
@@ -199,7 +199,7 @@ const QuizReviewModal: React.FC<{ result: QuizResult; onClose: () => void }> = (
                                                     rehypePlugins={[[rehypeKatex, { output: 'html' }]]}
                                                     components={markdownComponents}
                                                 >
-                                                    {q.explanation}
+                                                    {preprocessLaTeX(q.explanation)}
                                                 </ReactMarkdown>
                                                  {q.explanationTranslation && (
                                                     <div className="mt-1 pt-1 border-t border-slate-100 dark:border-slate-700">
@@ -208,7 +208,7 @@ const QuizReviewModal: React.FC<{ result: QuizResult; onClose: () => void }> = (
                                                             rehypePlugins={[[rehypeKatex, { output: 'html' }]]}
                                                             components={markdownComponents}
                                                         >
-                                                            {q.explanationTranslation}
+                                                            {preprocessLaTeX(q.explanationTranslation)}
                                                         </ReactMarkdown>
                                                     </div>
                                                 )}
@@ -393,7 +393,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onGoHome }) => {
                     <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700 animate-fadeIn">
                         <div className="prose prose-sm dark:prose-invert max-w-none bg-white dark:bg-slate-900/50 p-4 rounded-xl border border-slate-200 dark:border-slate-700/50 shadow-sm">
                             <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-                                {diagnosisReport}
+                                {preprocessLaTeX(diagnosisReport)}
                             </ReactMarkdown>
                         </div>
                          <div className="mt-3 text-right">

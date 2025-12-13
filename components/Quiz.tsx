@@ -4,7 +4,7 @@ import type { QuizQuestion, Grade, ShortAnswerEvaluation } from '../types.ts';
 import { Card } from './common/Card.tsx';
 import { Button } from './common/Button.tsx';
 import { Spinner } from './common/Spinner.tsx';
-import { generateSpeech, evaluateShortAnswer } from '../services/geminiService.ts';
+import { generateSpeech, evaluateShortAnswer, preprocessLaTeX } from '../services/geminiService.ts';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
@@ -524,7 +524,7 @@ export const Quiz: React.FC<QuizProps> = ({ questions, onSubmit }) => {
                                             rehypePlugins={[[rehypeKatex, { output: 'html' }]]} 
                                             components={markdownComponents}
                                         >
-                                            {option}
+                                            {preprocessLaTeX(option)}
                                         </ReactMarkdown>
                                     </div>
                                     {/* Translation for Option */}
@@ -535,7 +535,7 @@ export const Quiz: React.FC<QuizProps> = ({ questions, onSubmit }) => {
                                                 rehypePlugins={[[rehypeKatex, { output: 'html' }]]} 
                                                 components={markdownComponents}
                                             >
-                                                {optionTranslation}
+                                                {preprocessLaTeX(optionTranslation)}
                                             </ReactMarkdown>
                                         </div>
                                     )}
@@ -555,7 +555,7 @@ export const Quiz: React.FC<QuizProps> = ({ questions, onSubmit }) => {
                                     rehypePlugins={[[rehypeKatex, { output: 'html' }]]} 
                                     components={markdownComponents}
                                 >
-                                    {currentQuestion.answer}
+                                    {preprocessLaTeX(currentQuestion.answer)}
                                 </ReactMarkdown>
                             </div>
                              {showTranslation && currentQuestion.answerTranslation && (
@@ -575,7 +575,7 @@ export const Quiz: React.FC<QuizProps> = ({ questions, onSubmit }) => {
                                     rehypePlugins={[[rehypeKatex, { output: 'html' }]]} 
                                     components={markdownComponents}
                                 >
-                                    {currentQuestion.explanation}
+                                    {preprocessLaTeX(currentQuestion.explanation)}
                                 </ReactMarkdown>
                             </div>
                             {showTranslation && currentQuestion.explanationTranslation && (
@@ -628,7 +628,7 @@ export const Quiz: React.FC<QuizProps> = ({ questions, onSubmit }) => {
                                 rehypePlugins={[[rehypeKatex, { output: 'html' }]]} 
                                 components={markdownComponents}
                             >
-                                {tempShortAnswer}
+                                {preprocessLaTeX(tempShortAnswer)}
                             </ReactMarkdown>
                         </div>
                     </div>
@@ -645,7 +645,7 @@ export const Quiz: React.FC<QuizProps> = ({ questions, onSubmit }) => {
                                 rehypePlugins={[[rehypeKatex, { output: 'html' }]]} 
                                 components={markdownComponents}
                             >
-                                {currentQuestion.answer}
+                                {preprocessLaTeX(currentQuestion.answer)}
                             </ReactMarkdown>
                         </div>
                         {/* Translation for Answer */}
@@ -666,7 +666,7 @@ export const Quiz: React.FC<QuizProps> = ({ questions, onSubmit }) => {
                                 rehypePlugins={[[rehypeKatex, { output: 'html' }]]} 
                                 components={markdownComponents}
                             >
-                                {currentQuestion.explanation}
+                                {preprocessLaTeX(currentQuestion.explanation)}
                             </ReactMarkdown>
                         </div>
                         {showTranslation && currentQuestion.explanationTranslation && (
@@ -805,7 +805,7 @@ export const Quiz: React.FC<QuizProps> = ({ questions, onSubmit }) => {
                                 rehypePlugins={[[rehypeKatex, { output: 'html' }]]} 
                                 components={markdownComponents}
                             >
-                                {currentQuestion.question}
+                                {preprocessLaTeX(currentQuestion.question)}
                             </ReactMarkdown>
                         </div>
                         <button 
@@ -825,7 +825,7 @@ export const Quiz: React.FC<QuizProps> = ({ questions, onSubmit }) => {
                                 rehypePlugins={[[rehypeKatex, { output: 'html' }]]} 
                                 components={markdownComponents}
                             >
-                                {currentQuestion.questionTranslation}
+                                {preprocessLaTeX(currentQuestion.questionTranslation)}
                             </ReactMarkdown>
                         </div>
                     )}
@@ -862,7 +862,7 @@ export const Quiz: React.FC<QuizProps> = ({ questions, onSubmit }) => {
                                     rehypePlugins={[[rehypeKatex, { output: 'html' }]]} 
                                     components={markdownComponents}
                                 >
-                                    {currentQuestion.passage}
+                                    {preprocessLaTeX(currentQuestion.passage)}
                                 </ReactMarkdown>
                              </div>
                              {showTranslation && currentQuestion.passageTranslation && (
@@ -872,7 +872,7 @@ export const Quiz: React.FC<QuizProps> = ({ questions, onSubmit }) => {
                                         rehypePlugins={[[rehypeKatex, { output: 'html' }]]} 
                                         components={markdownComponents}
                                     >
-                                        {currentQuestion.passageTranslation}
+                                        {preprocessLaTeX(currentQuestion.passageTranslation)}
                                     </ReactMarkdown>
                                 </div>
                              )}
