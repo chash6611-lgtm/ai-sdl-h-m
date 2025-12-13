@@ -28,20 +28,20 @@
         }
       }
     </script>
-    <!-- Add KaTeX CSS for proper math rendering -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" integrity="sha384-n8MVd4RsNIU0tAv4ct0nTaAbDJwPJzDEaqSD1odI+WdtXRGWt2kTvGFasHpSy3SV" crossorigin="anonymous">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" integrity="sha384-n8MVd4RsNIU0KOVEMmg9ikewadVpGNI9SZCFHlSLpSKGkZ6UGJ2XJMTIuARpkRkY" crossorigin="anonymous">
     <style>
       body {
         font-family: 'Noto Sans KR', sans-serif;
       }
-      /* Ensure KaTeX math is readable in dark mode if needed, though usually it inherits correctly. */
-      .katex {
-        font-size: 1.1em;
+      /* Fix for double rendering of math formulas (hides accessible MathML) */
+      .katex-mathml {
+        display: none !important;
       }
     </style>
+    <link rel="apple-touch-icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxOTIiIGhlaWdodD0iMTkyIiB2aWV3Qm94PSIwIDAgMTAwIDEwMCI+PHJlY3Qgd2lkdGg9IjEwMCIgaGVpZ2h0PSIxMDAiIHJ4PSIyMCIgZmlsbD0iI0VBQjMwOCIvPjx0ZXh0IHg9IjUwJSIgeT0iNTUlIiBkb21pbmFudC1iYXNlbGluZT0ibWlkZGxlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjMWUyOTNiIiBmb250LXNpemU9IjQycHgiIGZvbnQtd2VpZ2h0PSI5MDAiIGZvbnQtZmFtaWx5PSJzYW5zLXNZXJpZiIgbGV0dGVyLXNwYWNpbmc9Ii0xcHgiPkFTREw8L3RleHQ+PC9zdmc+">
 <script type="importmap">
 {
   "imports": {
