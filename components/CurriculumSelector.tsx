@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import type { EducationCurriculum, Subject, Unit, GradeContent, AchievementStandard } from '../types.ts';
 import { Button } from './common/Button.tsx';
 import type { AppStatus } from '../App.tsx';
@@ -13,6 +13,14 @@ interface CurriculumSelectorProps {
     apiStatus: AppStatus;
     apiError: string | null;
     isCoolMode: boolean;
+}
+
+interface SearchableStandard {
+    curriculumName: string;
+    subjectName: string;
+    grade: string;
+    unitName: string;
+    standard: AchievementStandard;
 }
 
 export const CurriculumSelector: React.FC<CurriculumSelectorProps> = ({ 
@@ -37,9 +45,62 @@ export const CurriculumSelector: React.FC<CurriculumSelectorProps> = ({
     // State for Usage Guide Modal
     const [isUsageGuideOpen, setIsUsageGuideOpen] = useState(false);
 
+    // Search State
+    const [searchTerm, setSearchTerm] = useState('');
+    const [showSearchResults, setShowSearchResults] = useState(false);
+    const searchRef = useRef<HTMLDivElement>(null);
+
     useEffect(() => {
         setLocalApiKey(apiKey);
     }, [apiKey]);
+
+    // Flatten all standards for search
+    const allStandards = useMemo(() => {
+        const list: SearchableStandard[] = [];
+        educationCurriculums.forEach(curr => {
+            curr.subjects.forEach(subj => {
+                subj.grades.forEach(grade => {
+                    grade.units.forEach(unit => {
+                        unit.standards.forEach(std => {
+                            list.push({
+                                curriculumName: curr.name,
+                                subjectName: subj.name,
+                                grade: grade.grade,
+                                unitName: unit.name,
+                                standard: std
+                            });
+                        });
+                    });
+                });
+            });
+        });
+        return list;
+    }, [educationCurriculums]);
+
+    // Filter standards based on search term
+    const searchResults = useMemo(() => {
+        if (!searchTerm.trim()) return [];
+        const lowerTerm = searchTerm.toLowerCase();
+        return allStandards.filter(item => 
+            item.standard.description.toLowerCase().includes(lowerTerm) ||
+            item.standard.id.toLowerCase().includes(lowerTerm) ||
+            item.unitName.toLowerCase().includes(lowerTerm)
+        );
+    }, [searchTerm, allStandards]);
+
+    // Handle click outside to close search results
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
+                setShowSearchResults(false);
+            }
+        };
+
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, []);
 
     const {
         availableSubjects,
@@ -80,36 +141,50 @@ export const CurriculumSelector: React.FC<CurriculumSelectorProps> = ({
         };
     }, [educationCurriculums, selectedCurriculumName, selectedSubjectName, selectedGrade, selectedUnitName, selectedStandardId]);
     
-    useEffect(() => {
-        // When curriculum changes, reset other fields but set subject to default (first one)
-        const curriculum = educationCurriculums.find(c => c.name === selectedCurriculumName) || educationCurriculums[0];
-        const defaultSubject = curriculum?.subjects[0]?.name || '';
+    // -- Handlers for dropdown changes with manual reset logic --
+    // We moved reset logic from useEffects to handlers to allow programmatic updates (like search) without side effects overwriting them.
 
-        setSelectedGrade('');
-        setSelectedSubjectName(defaultSubject);
-        setSelectedUnitName('');
-        setSelectedStandardId('');
-    }, [selectedCurriculumName, educationCurriculums]);
-    
-    useEffect(() => {
-       setSelectedUnitName('');
-       setSelectedStandardId('');
-    }, [selectedGrade]);
-
-    useEffect(() => {
+    const handleSubjectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+        const newSubjectName = e.target.value;
+        setSelectedSubjectName(newSubjectName);
+        
         setSelectedGrade('');
         setSelectedUnitName('');
         setSelectedStandardId('');
-    }, [selectedSubjectName]);
+    };
 
-    useEffect(() => {
+    const handleGradeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+        setSelectedGrade(e.target.value);
+        setSelectedUnitName('');
         setSelectedStandardId('');
-    }, [selectedUnitName]);
+    };
+
+    const handleUnitChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+        setSelectedUnitName(e.target.value);
+        setSelectedStandardId('');
+    };
+
+    const handleStandardChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+        setSelectedStandardId(e.target.value);
+    };
 
     const handleSubmit = () => {
         if (selectedSubject && selectedStandard) {
             onStartStudy(selectedSubject.name, selectedStandard);
         }
+    };
+
+    const handleSearchSelect = (item: SearchableStandard) => {
+        // Update all selections to match the search result
+        setSelectedCurriculumName(item.curriculumName);
+        setSelectedSubjectName(item.subjectName);
+        setSelectedGrade(item.grade);
+        setSelectedUnitName(item.unitName);
+        setSelectedStandardId(item.standard.id);
+        
+        setShowSearchResults(false);
+        setSearchTerm('');
+        // NOTE: We do NOT call onStartStudy here. The user will see the dropdowns updated and click "Start Study" manually.
     };
     
     const handleApiKeySave = () => {
@@ -220,8 +295,8 @@ export const CurriculumSelector: React.FC<CurriculumSelectorProps> = ({
             
             <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg px-4 py-2 md:px-6 md:py-3 mt-2 text-left transition-colors duration-300">
                 <div className="mb-1.5 pb-1 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center">
-                    <h2 className="text-lg sm:text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
-                        학습 목표 설정
+                    <h2 className="text-base sm:text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                        학습 목표 설정 (2022 개정 교육과정)
                     </h2>
                     <button 
                         onClick={() => setIsUsageGuideOpen(true)}
@@ -230,24 +305,67 @@ export const CurriculumSelector: React.FC<CurriculumSelectorProps> = ({
                         앱 활용 방법
                     </button>
                 </div>
+
+                {/* Search Bar */}
+                <div className="relative mb-3 z-20" ref={searchRef}>
+                     <div className="relative">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                            </svg>
+                        </div>
+                        <input 
+                            type="text"
+                            value={searchTerm}
+                            onChange={(e) => {
+                                setSearchTerm(e.target.value);
+                                setShowSearchResults(true);
+                            }}
+                            onFocus={() => setShowSearchResults(true)}
+                            placeholder="핵심 단어로 성취기준 검색 (예: 행렬, 미분, 도형)"
+                            className="w-full pl-9 pr-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-sm text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-neon-blue focus:border-neon-blue transition-colors outline-none placeholder:text-slate-400 dark:placeholder:text-slate-500"
+                        />
+                     </div>
+                     
+                     {showSearchResults && searchTerm && (
+                        <div className="absolute w-full mt-1 bg-white dark:bg-slate-800 rounded-lg shadow-xl border border-slate-200 dark:border-slate-700 max-h-60 overflow-y-auto z-50">
+                            {searchResults.length > 0 ? (
+                                searchResults.map((item) => (
+                                    <button
+                                        key={item.standard.id}
+                                        onClick={() => handleSearchSelect(item)}
+                                        className="w-full text-left px-4 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-700 border-b border-slate-100 dark:border-slate-700 last:border-0 transition-colors"
+                                    >
+                                        <div className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-0.5">
+                                            {item.grade} &gt; {item.unitName}
+                                        </div>
+                                        <div className="text-sm font-medium text-slate-800 dark:text-slate-100 leading-snug">
+                                            <span className="text-neon-blue font-bold mr-1">{item.standard.id}</span>
+                                            {item.standard.description}
+                                        </div>
+                                    </button>
+                                ))
+                            ) : (
+                                <div className="p-3 text-center text-sm text-slate-500 dark:text-slate-400">
+                                    검색 결과가 없습니다.
+                                </div>
+                            )}
+                        </div>
+                     )}
+                </div>
+
                 <div className="space-y-2.5">
-                    <div>
-                        <label htmlFor="curriculum" className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">교육과정</label>
-                        <Select id="curriculum" value={selectedCurriculumName} onChange={e => setSelectedCurriculumName(e.target.value)}>
-                            {educationCurriculums.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
-                        </Select>
-                    </div>
                     <div className="flex gap-2">
                         <div className="flex-1">
                             <label htmlFor="subject" className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">교과</label>
-                            <Select id="subject" value={selectedSubjectName} onChange={e => setSelectedSubjectName(e.target.value)} disabled={availableSubjects.length === 0}>
+                            <Select id="subject" value={selectedSubjectName} onChange={handleSubjectChange} disabled={availableSubjects.length === 0}>
                                 <option value="" disabled={selectedSubjectName !== ''}>선택</option>
                                 {availableSubjects.map(s => <option key={s.name} value={s.name}>{s.name}</option>)}
                             </Select>
                         </div>
                         <div className="flex-1">
                             <label htmlFor="grade" className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">선택과목</label>
-                            <Select id="grade" value={selectedGrade} onChange={e => setSelectedGrade(e.target.value)} disabled={!selectedSubjectName}>
+                            <Select id="grade" value={selectedGrade} onChange={handleGradeChange} disabled={!selectedSubjectName}>
                                 <option value="" disabled={selectedGrade !== ''}>선택</option>
                                 {availableGrades.map(g => <option key={g} value={g}>{g}</option>)}
                             </Select>
@@ -258,7 +376,7 @@ export const CurriculumSelector: React.FC<CurriculumSelectorProps> = ({
                         {selectedGrade && !isSubjectReady ? (
                           <DisabledSelectPlaceholder text="준비중인 단원입니다." />
                         ) : (
-                          <Select id="unit" value={selectedUnitName} onChange={e => setSelectedUnitName(e.target.value)} disabled={!selectedGrade}>
+                          <Select id="unit" value={selectedUnitName} onChange={handleUnitChange} disabled={!selectedGrade}>
                               <option value="" disabled={selectedUnitName !== ''}>단원을 선택하세요</option>
                               {availableUnits.map(u => <option key={u.name} value={u.name}>{u.name}</option>)}
                           </Select>
@@ -269,7 +387,7 @@ export const CurriculumSelector: React.FC<CurriculumSelectorProps> = ({
                          {selectedGrade && !isSubjectReady ? (
                           <DisabledSelectPlaceholder text="성취기준을 선택하세요" />
                         ) : (
-                          <Select id="standard" value={selectedStandardId} onChange={e => setSelectedStandardId(e.target.value)} disabled={!selectedUnitName || availableStandards.length === 0}>
+                          <Select id="standard" value={selectedStandardId} onChange={handleStandardChange} disabled={!selectedUnitName || availableStandards.length === 0}>
                               <option value="" disabled={selectedStandardId !== ''}>성취기준을 선택하세요</option>
                               {availableStandards.map(s => <option key={s.id} value={s.id}>{s.id}: {s.description}</option>)}
                           </Select>
